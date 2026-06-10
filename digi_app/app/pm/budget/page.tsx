@@ -14,10 +14,13 @@ import {
 
 export default function BudgetProyek() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [reimbursements, setReimbursements] = useState<any[]>([]);
   const [selectedProjectIndex, setSelectedProjectIndex] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -29,66 +32,114 @@ export default function BudgetProyek() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // DATA MOCK 
-  const projects = [
-    {
-      id: "PRJ-2026-001",
-      client: "PT Sinar Logistik Nusantara",
-      title: "Renovasi Kantor Cabang Bandung",
-      status: "Aktif",
-      timeline: "12 Jan 2026 - 30 Sep 2026",
-      pm: "Muhammad Alvin Ababil",
-      totalRAB: 4800000000, 
-      pengeluaran: 3100000000, 
-      reimbursement: 412000000, 
-      sisa: 1700000000, 
+  const fetchDashboardData = () => {
+    Promise.all([
+      fetch('/api/proyek').then(res => res.json()),
+      fetch('/api/reimbursements').then(res => res.json())
+    ])
+    .then(([projectsData, reimbursementsData]) => {
+      if (projectsData.projects) {
+        setProjects(projectsData.projects);
+      }
+      if (reimbursementsData.reimbursements) {
+        setReimbursements(reimbursementsData.reimbursements);
+      }
+    })
+    .catch(err => console.error('Error fetching dashboard data:', err))
+    .finally(() => setIsLoading(false));
+  };
 
-      posAnggaran: [
-        { id: "POS-101", name: "Material Konstruksi", used: 1.7, total: 2.4, unit: "M" },
-        { id: "POS-182", name: "Tenaga Kerja Lapangan", used: 820, total: 1200, unit: "jt" },
-        { id: "POS-103", name: "Sewa Alat Berat", used: 418, total: 606, unit: "jt" },
-        { id: "RDS-103", name: "Transportasi & Logistik", used: 145, total: 328, unit: "jt" },
-        { id: "PDS-164", name: "Konsumsi & Akomodasi", used: 52.6, total: 180.0, unit: "jt" },
-        { id: "POS-105", name: "Perlengkapan & ATK", used: 13.0, total: 100.0, unit: "jt" },
-      ],
-      
-      pengajuanReimbursement: [
-        { id: "RB-2026-004", pemohon: "Alif Ihsan", initials: "AI", merchant: "Gramedia Merdeka", pos: "Perlengkapan & ATK", nominal: "Rp150.000", status: "Menunggu PM", statusColor: "bg-[#FCEFD9] text-[#A76F28]" },
-        { id: "RB-2026-004", pemohon: "Alif Ihsan", initials: "AI", merchant: "Gramedia Merdeka", pos: "Perlengkapan & ATK", nominal: "Rp150.000", status: "Menunggu PM", statusColor: "bg-[#FCEFD9] text-[#A76F28]" },
-        { id: "RB-2026-004", pemohon: "Alif Ihsan", initials: "AI", merchant: "Gramedia Merdeka", pos: "Perlengkapan & ATK", nominal: "Rp150.000", status: "Verifikasi Keuangan", statusColor: "bg-[#E3F2FD] text-[#1D63B8]" },
-        { id: "RB-2026-004", pemohon: "Alif Ihsan", initials: "AI", merchant: "Gramedia Merdeka", pos: "Perlengkapan & ATK", nominal: "Rp150.000", status: "Dicairkan", statusColor: "bg-[#E2F0D9] text-[#385723]" },
-        { id: "RB-2026-004", pemohon: "Alif Ihsan", initials: "AI", merchant: "Gramedia Merdeka", pos: "Perlengkapan & ATK", nominal: "Rp150.000", status: "Dicairkan", statusColor: "bg-[#E2F0D9] text-[#385723]" },
-      ]
-    },
-    {
-      id: "PRJ-2026-002",
-      client: "PT Telko Global Indonesia",
-      title: "Instalasi Jaringan Fiber Optik BSD",
-      status: "Aktif",
-      timeline: "01 Feb 2026 - 31 Des 2026",
-      pm: "Muhammad Alvin Ababil",
-      totalRAB: 2500000000,
-      pengeluaran: 1200000000,
-      reimbursement: 180000000,
-      sisa: 1300000000,
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-      posAnggaran: [
-        { id: "POS-201", name: "Kabel & Perangkat FO", used: 0.8, total: 1.5, unit: "M" },
-        { id: "POS-202", name: "Jasa Gali & Penarikan", used: 300, total: 700, unit: "jt" },
-      ],
-      pengajuanReimbursement: [
-        { id: "RB-2026-010", pemohon: "Budi Santoso", initials: "BS", merchant: "Toko Sinar Abadi", pos: "Kabel & Perangkat FO", nominal: "Rp4.500.000", status: "Dicairkan", statusColor: "bg-[#E2F0D9] text-[#385723]" },
-      ]
+  const handleApproval = async (id: string, action: 'APPROVE' | 'REJECT') => {
+    const actionText = action === 'APPROVE' ? 'menyetujui' : 'menolak';
+    if (!confirm(`Apakah Anda yakin ingin ${actionText} pengajuan ini?`)) {
+      return;
     }
-  ];
+    try {
+      const res = await fetch(`/api/reimbursements/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(action === 'APPROVE' ? 'Pengajuan berhasil disetujui!' : 'Pengajuan berhasil ditolak!');
+        fetchDashboardData();
+      } else {
+        alert(data.message || 'Gagal memproses approval');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat memproses data');
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center text-slate-500 font-semibold">
+        Memuat data budget proyek...
+      </div>
+    );
+  }
+
+  if (projects.length === 0) {
+    return (
+      <div className="min-h-screen bg-[#F6F4EF] flex items-center justify-center text-slate-500 font-semibold font-sans">
+        Belum ada proyek yang dikonfigurasi di sistem.
+      </div>
+    );
+  }
 
   const currentProject = projects[selectedProjectIndex];
-  const posAnggaran = currentProject.posAnggaran;
-  const pengajuanReimbursement = currentProject.pengajuanReimbursement;
+  
+  const projectTitle = currentProject.nama;
+  const projectId = currentProject.id;
+  const projectClient = currentProject.deskripsi || "Client";
+  const projectTimeline = `${new Date(currentProject.tanggalMulai).toLocaleDateString('id-ID')} - ${currentProject.tanggalSelesai ? new Date(currentProject.tanggalSelesai).toLocaleDateString('id-ID') : 'Selesai'}`;
+  const projectPM = currentProject.users?.find((u: any) => u.role === 'Project Manager')?.nama || 'Alvin PM';
+  
+  const totalRAB = Number(currentProject.budget?.rabTotal || 0);
+  const totalPengeluaran = Number(currentProject.budget?.totalPengeluaran || 0);
+  const totalReimbursement = Number(currentProject.budget?.totalReimbursement || 0);
+  const sisaBudget = Number(currentProject.budget?.sisaBudget || 0);
+  
+  const posAnggaran = currentProject.budget?.posAnggaran?.map((pos: any) => ({
+    id: pos.id,
+    name: pos.deskripsi,
+    used: Number(pos.nominalTerpakai),
+    total: Number(pos.nominalAlokasi)
+  })) || [];
 
-  const pctTotalPengeluaran = (currentProject.pengeluaran / currentProject.totalRAB) * 100; 
-  const pctReimbursement = (currentProject.reimbursement / currentProject.totalRAB) * 100; 
-  const pctMurniPengeluaran = pctTotalPengeluaran - pctReimbursement; 
+  const projectReimbursements = reimbursements.filter(r => r.proyekId === projectId);
+
+  const mappedReimbursements = projectReimbursements.map((r: any) => {
+    const initials = r.user?.nama ? r.user.nama.split(' ').map((n: any) => n[0]).join('').substring(0, 2).toUpperCase() : 'KY';
+    const statusText = r.status === 'SUBMITTED' ? 'Menunggu PM' :
+                       r.status === 'APPROVED_BY_PM' ? 'Verifikasi Keuangan' :
+                       r.status === 'APPROVED' ? 'Dicairkan' : 'Ditolak';
+    const statusColor = r.status === 'SUBMITTED' ? 'bg-[#FCEFD9] text-[#A76F28]' :
+                        r.status === 'APPROVED_BY_PM' ? 'bg-[#E3F2FD] text-[#1D63B8]' :
+                        r.status === 'APPROVED' ? 'bg-[#E2F0D9] text-[#385723]' : 'bg-red-50 text-red-700';
+
+    return {
+      dbId: r.id,
+      id: r.id.substring(0, 8).toUpperCase(),
+      pemohon: r.user?.nama || 'Karyawan',
+      initials,
+      merchant: r.ocrData?.merchant || 'N/A',
+      pos: r.posAnggaran?.deskripsi || 'N/A',
+      nominal: `Rp ${Number(r.nominal).toLocaleString('id-ID')}`,
+      status: statusText,
+      statusColor
+    };
+  });
+
+  const pctTotalPengeluaran = totalRAB > 0 ? (totalPengeluaran / totalRAB) * 100 : 0;
+  const pctReimbursement = totalRAB > 0 ? (totalReimbursement / totalRAB) * 100 : 0;
+  const pctMurniPengeluaran = pctTotalPengeluaran - pctReimbursement;
 
   const formatRupiahShort = (value: number): string => {
     if (value >= 1_000_000_000) {
@@ -101,19 +152,19 @@ export default function BudgetProyek() {
   };
 
   const displayMetrics = {
-    total: formatRupiahShort(currentProject.totalRAB),
-    pengeluaran: formatRupiahShort(currentProject.pengeluaran),
-    reimbursement: formatRupiahShort(currentProject.reimbursement),
-    sisa: formatRupiahShort(currentProject.sisa)
+    total: formatRupiahShort(totalRAB),
+    pengeluaran: formatRupiahShort(totalPengeluaran),
+    reimbursement: formatRupiahShort(totalReimbursement),
+    sisa: formatRupiahShort(sisaBudget)
   };
 
   const entriesPerPage = 5;
-  const totalEntries = pengajuanReimbursement.length;
+  const totalEntries = mappedReimbursements.length;
   const totalPages = Math.ceil(totalEntries / entriesPerPage);
 
   const indexOfLastEntry = currentPage * entriesPerPage;
   const indexOfFirstEntry = indexOfLastEntry - entriesPerPage;
-  const currentEntries = pengajuanReimbursement.slice(indexOfFirstEntry, indexOfLastEntry);
+  const currentEntries = mappedReimbursements.slice(indexOfFirstEntry, indexOfLastEntry);
 
   return (
     <div className="min-h-screen bg-background flex text-slate-800 font-sans">
@@ -136,11 +187,11 @@ export default function BudgetProyek() {
                 Budget Proyek
               </h1>
               <p className="text-sm font-medium text-slate-500 flex items-center flex-wrap gap-x-1.5">
-                <span>{currentProject.client}</span>
+                <span>{projectClient}</span>
                 <span className="text-slate-300">•</span>
-                <span>{currentProject.timeline}</span>
+                <span>{projectTimeline}</span>
                 <span className="text-slate-300">•</span>
-                <span>PM: {currentProject.pm}</span>
+                <span>PM: {projectPM}</span>
               </p>
             </div>
 
@@ -151,7 +202,7 @@ export default function BudgetProyek() {
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                   className="w-full flex items-center justify-between bg-white hover:bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm transition-all"
                 >
-                  <span className="truncate">{currentProject.title}</span>
+                  <span className="truncate">{projectTitle}</span>
                   <ChevronDown size={14} className={`text-slate-400 ml-2 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
                 </button>
 
@@ -164,7 +215,7 @@ export default function BudgetProyek() {
                         onClick={() => { setSelectedProjectIndex(idx); setCurrentPage(1); setIsDropdownOpen(false); }}
                         className={`w-full text-left px-4 py-2.5 text-xs font-semibold hover:bg-slate-50 block transition ${idx === selectedProjectIndex ? 'text-blue-600 bg-blue-50/40' : 'text-slate-700'}`}
                       >
-                        {proj.title}
+                        {proj.nama}
                       </button>
                     ))}
                   </div>
@@ -182,13 +233,13 @@ export default function BudgetProyek() {
             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold text-slate-900">{currentProject.title}</h2>
+                  <h2 className="text-xl font-bold text-slate-900">{projectTitle}</h2>
                   <span className="inline-flex text-[10px] font-bold bg-[#E2F0D9] text-[#385723] px-2.5 py-0.5 rounded-md">
                     {currentProject.status}
                   </span>
                 </div>
                 <p className="text-[11px] font-medium text-slate-400 font-mono tracking-wide">
-                  {currentProject.id} · {currentProject.client}
+                  {projectId} · {projectClient}
                 </p>
               </div>
 
@@ -230,7 +281,7 @@ export default function BudgetProyek() {
                   <span className="text-[10px] font-bold tracking-wider text-slate-400 block uppercase">REIMBURSEMENT</span>
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <span className="text-xl font-extrabold text-[#1D63B8] font-mono">{displayMetrics.reimbursement}</span>
-                    <span className="text-[11px] font-semibold text-slate-400">{((currentProject.reimbursement / currentProject.pengeluaran) * 100).toFixed(1)}% dari pengeluaran</span>
+                    <span className="text-[11px] font-semibold text-slate-400">{pctTotalPengeluaran > 0 ? ((totalReimbursement / totalPengeluaran) * 100).toFixed(1) : 0}% dari pengeluaran</span>
                   </div>
                 </div>
               </div>
@@ -241,7 +292,7 @@ export default function BudgetProyek() {
                   <span className="text-[10px] font-bold tracking-wider text-slate-400 block uppercase">SISA</span>
                   <div className="flex items-baseline gap-2 flex-wrap">
                     <span className="text-xl font-extrabold text-[#036240] font-mono">{displayMetrics.sisa}</span>
-                    <span className="text-[11px] font-semibold text-slate-400">{((currentProject.sisa / currentProject.totalRAB) * 100).toFixed(1)}% dari RAB</span>
+                    <span className="text-[11px] font-semibold text-slate-400">{totalRAB > 0 ? ((sisaBudget / totalRAB) * 100).toFixed(1) : 0}% dari RAB</span>
                   </div>
                 </div>
               </div>
@@ -264,8 +315,8 @@ export default function BudgetProyek() {
                 </div>
 
                 <div className="space-y-4 pt-1">
-                  {posAnggaran.map((pos, idx) => {
-                    const percentage = Math.min(Math.round((pos.used / pos.total) * 100), 100);
+                  {posAnggaran.map((pos: any, idx: number) => {
+                    const percentage = pos.total > 0 ? Math.min(Math.round((pos.used / pos.total) * 100), 100) : 0;
                     const isWarning = percentage >= 80;
 
                     return (
@@ -274,11 +325,11 @@ export default function BudgetProyek() {
                           <div>
                             <span className="font-bold text-slate-800">{pos.name}</span>
                             <span className="ml-1.5 text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.2 rounded">
-                              {pos.id}
+                              {pos.id.substring(0, 8).toUpperCase()}
                             </span>
                           </div>
                           <div className="text-slate-500 font-mono">
-                            <span className="font-bold text-slate-800">Rp {pos.used}</span> / Rp {pos.total} {pos.unit}
+                            <span className="font-bold text-slate-800">Rp {pos.used.toLocaleString('id-ID')}</span> / Rp {pos.total.toLocaleString('id-ID')}
                           </div>
                         </div>
                         
@@ -306,7 +357,7 @@ export default function BudgetProyek() {
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4 lg:col-span-5 h-full flex flex-col justify-between min-h-[420px]">
                 <div className="border-b border-slate-100 pb-3">
                   <h3 className="font-bold text-xl text-slate-900">
-                     Image gk tau ini buat apa
+                     Grafik Anggaran
                   </h3>
                 </div>
                 <div className="flex-1 flex flex-col items-center justify-center p-4 border border-dashed border-slate-200 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition duration-300 relative overflow-hidden group min-h-[250px]">
@@ -326,7 +377,7 @@ export default function BudgetProyek() {
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs min-w-225 border-collapse">
+                <table className="w-full text-left text-xs min-w-[800px] border-collapse">
                   <thead>
                     <tr className="bg-[#F5F4F0] text-[#A3A29D] font-bold text-[11px] tracking-wider border-b border-slate-200">
                       <th className="py-4 px-6 font-medium">ID PENGAJUAN</th>
@@ -335,79 +386,109 @@ export default function BudgetProyek() {
                       <th className="py-4 px-4 font-medium">POS</th>
                       <th className="py-4 px-4 font-medium">NOMINAL</th>
                       <th className="py-4 px-6 font-medium text-center">STATUS</th>
+                      <th className="py-4 px-6 font-medium text-center">AKSI</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {currentEntries.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/40 transition">
-                        <td className="py-4 px-6 font-mono text-slate-400 text-xs">
-                          {item.id}
-                        </td>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-7 h-7 bg-[#DDF2E8] text-[#198754] rounded-full flex items-center justify-center font-bold text-[11px] select-none shrink-0">
-                              {item.initials}
+                    {currentEntries.length > 0 ? (
+                      currentEntries.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/40 transition">
+                          <td className="py-4 px-6 font-mono text-slate-400 text-xs">
+                            {item.id}
+                          </td>
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 bg-[#DDF2E8] text-[#198754] rounded-full flex items-center justify-center font-bold text-[11px] select-none shrink-0">
+                                {item.initials}
+                              </div>
+                              <span className="font-bold text-slate-800 text-xs">{item.pemohon}</span>
                             </div>
-                            <span className="font-bold text-slate-800 text-xs">{item.pemohon}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4 font-bold text-slate-800 text-xs">
-                          {item.merchant}
-                        </td>
-                        <td className="py-4 px-4">
-                          <span className="inline-block px-3 py-1 rounded-full bg-[#F5F4F0] text-slate-500 font-medium text-[11px]">
-                            {item.pos}
-                          </span>
-                        </td>
-                        <td className="py-4 px-4 font-semibold text-slate-800 text-xs font-sans">
-                          <span className="text-slate-400 font-normal mr-0.5">Rp</span>
-                          {item.nominal.replace("Rp", "")}
-                        </td>
-                        <td className="py-4 px-6 text-center">
-                          <span className={`inline-block px-3 py-1 rounded-xl text-[11px] font-bold text-center min-w-32.5 ${item.statusColor}`}>
-                            {item.status}
-                          </span>
+                          </td>
+                          <td className="py-4 px-4 font-bold text-slate-800 text-xs">
+                            {item.merchant}
+                          </td>
+                          <td className="py-4 px-4">
+                            <span className="inline-block px-3 py-1 rounded-full bg-[#F5F4F0] text-slate-500 font-medium text-[11px]">
+                              {item.pos}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 font-semibold text-slate-800 text-xs font-sans">
+                            {item.nominal}
+                          </td>
+                          <td className="py-4 px-6 text-center">
+                            <span className={`inline-block px-3 py-1 rounded-xl text-[11px] font-bold text-center min-w-32.5 ${item.statusColor}`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-center">
+                            {item.status === 'Menunggu PM' ? (
+                              <div className="flex gap-2 justify-center">
+                                <button 
+                                  onClick={() => handleApproval(item.dbId, 'APPROVE')}
+                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                >
+                                  Setujui
+                                </button>
+                                <button 
+                                  onClick={() => handleApproval(item.dbId, 'REJECT')}
+                                  className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-[10px] font-bold cursor-pointer"
+                                >
+                                  Tolak
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 font-medium">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">
+                          Tidak ada pengajuan reimbursement untuk proyek ini.
                         </td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>
 
-              <div className="flex justify-center items-center py-4 bg-white border-t border-slate-100">
-                <div className="flex items-center gap-4 bg-[#F5F4F0] px-4 py-2 rounded-full shadow-inner text-xs font-medium select-none text-slate-600">
-        
-                  <button 
-                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                    disabled={currentPage === 1}
-                    className={`w-5 h-5 rounded-full bg-[#8A6240] text-white flex items-center justify-center font-bold text-[10px] hover:opacity-90 transition ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    <ChevronLeft size={18}/>
-                  </button>
-                  
-                  {Array.from({ length: totalPages }, (_, idx) => {
-                    const pageNum = idx + 1;
-                    const isActive = pageNum === currentPage;
-                    return isActive ? (
-                      <span key={pageNum} className="w-4 h-4 rounded bg-[#EBE9E1] text-slate-800 font-bold flex items-center justify-center cursor-pointer">
-                        {pageNum}
-                      </span>
-                    ) : (
-                      <span key={pageNum} onClick={() => setCurrentPage(pageNum)} className="hover:text-slate-900 cursor-pointer transition">
-                        {pageNum}
-                      </span>
-                    );
-                  })}
-                  
-                  <button 
-                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                    disabled={currentPage === totalPages || totalPages === 0}
-                    className={`w-5 h-5 rounded-full bg-[#8A6240] text-white flex items-center justify-center font-bold text-[10px] hover:opacity-90 transition ${currentPage === totalPages || totalPages === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    <ChevronRight size={18}/>
-                  </button>
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center py-4 bg-white border-t border-slate-100">
+                  <div className="flex items-center gap-4 bg-[#F5F4F0] px-4 py-2 rounded-full shadow-inner text-xs font-medium select-none text-slate-600">
+          
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className={`w-5 h-5 rounded-full bg-[#8A6240] text-white flex items-center justify-center font-bold text-[10px] hover:opacity-90 transition ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <ChevronLeft size={18}/>
+                    </button>
+                    
+                    {Array.from({ length: totalPages }, (_, idx) => {
+                      const pageNum = idx + 1;
+                      const isActive = pageNum === currentPage;
+                      return isActive ? (
+                        <span key={pageNum} className="w-4 h-4 rounded bg-[#EBE9E1] text-slate-800 font-bold flex items-center justify-center cursor-pointer">
+                          {pageNum}
+                        </span>
+                      ) : (
+                        <span key={pageNum} onClick={() => setCurrentPage(pageNum)} className="hover:text-slate-900 cursor-pointer transition">
+                          {pageNum}
+                        </span>
+                      );
+                    })}
+                    
+                    <button 
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className={`w-5 h-5 rounded-full bg-[#8A6240] text-white flex items-center justify-center font-bold text-[10px] hover:opacity-90 transition ${currentPage === totalPages || totalPages === 0 ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <ChevronRight size={18}/>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </div>

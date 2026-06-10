@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/sidebar-karyawan';
 import Header from '@/components/header-karyawan';
 import { 
@@ -10,50 +10,174 @@ import {
   Check, 
   ChevronDown, 
   ArrowLeft,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 export default function AjukanReimbursement() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [currentState, setCurrentState] = useState<'upload' | 'ocr' | 'review' | 'success'>('upload');
-  const [proyek, setProyek] = useState("Renovasi Kantor Cabang Bandung");
-  const [posAnggaran, setPosAnggaran] = useState("Perlengkapan & ATK");
-  const [merchant, setMerchant] = useState("Gramedia Merdeka");
-  const [tanggal, setTanggal] = useState("2026-05-18");
-  const [nominal, setNominal] = useState("450.000");
-  const [kategoriBukti, setKategoriBukti] = useState("Struk Pembelian");
-  const [keterangan, setKeterangan] = useState("Pembelian kertas A4, log book, dan papan klip untuk kebutuhan administrasi site.");
+  
+  // Backend dynamic projects and categories
+  const [projects, setProjects] = useState<any[]>([]);
+  const [proyekId, setProyekId] = useState('');
+  const [posAnggaranId, setPosAnggaranId] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleUploadAction = () => setCurrentState('ocr');
-  const handleOcrFinished = () => setCurrentState('review');
-  const handleFormSubmit = () => setCurrentState('success');
+  // Form states - Reimbursement fields
+  const [merchant, setMerchant] = useState("");
+  const [tanggal, setTanggal] = useState("");
+  const [nominal, setNominal] = useState("");
+  const [kategoriBukti, setKategoriBukti] = useState("Struk Pembelian");
+  const [keterangan, setKeterangan] = useState("");
+
+  // File upload state and preview
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState('/bukti_struk.png');
+
+  useEffect(() => {
+    // Load projects to select
+    fetch('/api/proyek')
+      .then(res => res.json())
+      .then(data => {
+        if (data.projects) {
+          setProjects(data.projects);
+          if (data.projects.length > 0) {
+            const firstProject = data.projects[0];
+            setProyekId(firstProject.id);
+            if (firstProject.budget?.posAnggaran?.length > 0) {
+              setPosAnggaranId(firstProject.budget.posAnggaran[0].id);
+            }
+          }
+        }
+      })
+      .catch(err => console.error('Error loading projects:', err));
+  }, []);
+
+  const handleProjectChange = (id: string) => {
+    setProyekId(id);
+    const proj = projects.find(p => p.id === id);
+    if (proj?.budget?.posAnggaran?.length > 0) {
+      setPosAnggaranId(proj.budget.posAnggaran[0].id);
+    } else {
+      setPosAnggaranId('');
+    }
+  };
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSelectedFile(file);
+    
+    // Create object URL for preview
+    const previewUrl = URL.createObjectURL(file);
+    setFilePreview(previewUrl);
+    
+    setCurrentState('ocr');
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch('/api/ocr', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMerchant(data.data.merchant);
+        setTanggal(data.data.tanggal);
+        setNominal(data.data.nominal.toString());
+        setKategoriBukti(data.data.kategoriBukti);
+        setKeterangan(data.data.keterangan);
+        setCurrentState('review');
+      } else {
+        alert('OCR failed: ' + (data.message || 'Unknown error'));
+        setCurrentState('upload');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error connecting to OCR API');
+      setCurrentState('upload');
+    }
+  };
+
+  const handleSubmitReimbursement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    const formData = new FormData();
+    formData.append('proyekId', proyekId);
+    formData.append('posAnggaranId', posAnggaranId);
+    
+    // Clean nominal string (e.g. "450.000" -> "450000")
+    const cleanNominal = nominal.replace(/\./g, '').replace(/,/g, '.');
+    formData.append('nominal', cleanNominal);
+    
+    if (selectedFile) {
+      formData.append('file', selectedFile);
+    }
+    
+    formData.append('ocrData', JSON.stringify({
+      merchant,
+      tanggal,
+      kategoriBukti,
+      keterangan,
+    }));
+
+    try {
+      const res = await fetch('/api/reimbursements', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        // format nominal for success page
+        setNominal(parseFloat(cleanNominal).toLocaleString('id-ID'));
+        setCurrentState('success');
+      } else {
+        alert(data.message || 'Gagal mengirim pengajuan');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Terjadi kesalahan saat menghubungi server');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleResetForm = () => {
     setCurrentState('upload');
-    setProyek("Renovasi Kantor Cabang Bandung");
-    setPosAnggaran("Perlengkapan & ATK");
-    setMerchant("Gramedia Merdeka");
-    setTanggal("2026-05-18");
-    setNominal("450.000");
+    setSelectedFile(null);
+    setFilePreview('/bukti_struk.png');
+    setMerchant("");
+    setTanggal("");
+    setNominal("");
     setKategoriBukti("Struk Pembelian");
-    setKeterangan("Pembelian kertas A4, log book, dan papan klip untuk kebutuhan administrasi site.");
+    setKeterangan("");
   };
 
   return (
     <div className="min-h-screen bg-background flex text-stone-800 font-sans selection:bg-emerald-100">
       
       {/* 1. SIDEBAR KARYAWAN */}
-      <Sidebar />
-
-      {/* OVERLAY FOR MOBILE */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/20 lg:hidden" onClick={() => setIsSidebarOpen(false)} />
-      )}
+      <Sidebar 
+        isSidebarOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+      />
 
       {/* 2. MAIN AREA CONTAINER */}
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
         
         {/* GLOBAL HEADER BAR */}
-        <Header />
+        <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
 
         {/* CONTAINER CONTENT UTAMA */}
         <main className="p-4 lg:p-8 space-y-6 w-full mx-auto">
@@ -138,22 +262,29 @@ export default function AjukanReimbursement() {
           {/* STATE 1: UPLOAD STRUK */}
           {currentState === 'upload' && (
             <div className="bg-white border border-stone-200 rounded-2xl p-6 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                className="hidden" 
+                accept="image/*,application/pdf"
+              />
               <div className="md:col-span-6 space-y-4">
                 <h2 className="text-lg font-bold text-stone-900">Upload foto struk atau nota</h2>
                 <p className="text-xs text-stone-400 leading-relaxed">
                   Pastikan struk terlihat jelas, tidak terlipat, dan seluruh informasi (merchant, tanggal, total) terbaca. Format yang didukung: JPG, PNG, HEIC, atau PDF dengan ukuran maksimal 10MB.
                 </p>
                 <div className="flex items-center gap-2.5 pt-2">
-                  <button onClick={handleUploadAction} className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#008F5D] hover:bg-[#007A4F] text-white text-xs font-bold rounded-xl transition shadow-sm">
+                  <button onClick={triggerFileInput} className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#008F5D] hover:bg-[#007A4F] text-white text-xs font-bold rounded-xl transition shadow-sm">
                     <Camera size={14} /> Ambil foto
                   </button>
-                  <button onClick={handleUploadAction} className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-xs font-bold rounded-xl transition shadow-sm">
+                  <button onClick={triggerFileInput} className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-xs font-bold rounded-xl transition shadow-sm">
                     <Upload size={14} /> Unggah File
                   </button>
                 </div>
               </div>
               
-              <div onClick={handleUploadAction} className="md:col-span-6 border-2 border-dashed border-stone-200 hover:border-emerald-500 bg-stone-50/50 rounded-2xl p-8 flex flex-col items-center justify-center gap-2 text-center cursor-pointer transition group">
+              <div onClick={triggerFileInput} className="md:col-span-6 border-2 border-dashed border-stone-200 hover:border-emerald-500 bg-stone-50/50 rounded-2xl p-8 flex flex-col items-center justify-center gap-2 text-center cursor-pointer transition group">
                 <div className="w-9 h-9 bg-white border border-stone-100 rounded-xl flex items-center justify-center text-stone-400 group-hover:text-emerald-600 shadow-sm transition">
                   <Upload size={16} />
                 </div>
@@ -172,7 +303,7 @@ export default function AjukanReimbursement() {
                 <div className="absolute inset-0 bg-gradient-to-b from-emerald-500/0 via-emerald-500/5 to-emerald-500/0 pointer-events-none z-10 animate-pulse" />
 
                 <img 
-                  src="/bukti_struk.png" 
+                  src={filePreview} 
                   alt="Bukti Struk" 
                   className="w-full h-full object-cover"
                 />
@@ -210,12 +341,6 @@ export default function AjukanReimbursement() {
                     <span>Validasi anti-fraud</span>
                   </div>
                 </div>
-
-                <div className="pt-4">
-                  <button onClick={handleOcrFinished} className="px-4 py-2 bg-stone-900 text-white font-bold text-xs rounded-xl hover:bg-stone-800 transition">
-                    Simulasikan Selesai Ekstrak
-                  </button>
-                </div>
               </div>
             </div>
           )}
@@ -235,19 +360,20 @@ export default function AjukanReimbursement() {
                   </p>
                 </div>
 
-                <form className="space-y-4 text-xs font-bold text-stone-700" onSubmit={(e) => { e.preventDefault(); handleFormSubmit(); }}>
+                <form className="space-y-4 text-xs font-bold text-stone-700" onSubmit={handleSubmitReimbursement}>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5 text-left">
                       <label className="text-stone-500 font-bold">Proyek</label>
                       <div className="relative">
                         <select 
-                          value={proyek} 
-                          onChange={(e) => setProyek(e.target.value)}
+                          value={proyekId} 
+                          onChange={(e) => handleProjectChange(e.target.value)}
                           className="w-full bg-white border border-stone-200 rounded-xl pl-3 pr-10 py-3 font-medium text-stone-800 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#008F5D] transition-all"
                         >
-                          <option value="Renovasi Kantor Cabang Bandung">Renovasi Kantor Cabang Bandung</option>
-                          <option value="Pembangunan Gudang Fase 2">Pembangunan Gudang Fase 2</option>
+                          {projects.map(p => (
+                            <option key={p.id} value={p.id}>{p.nama}</option>
+                          ))}
                         </select>
                         <ChevronDown size={14} className="absolute right-3 top-4 text-stone-400 pointer-events-none" />
                       </div>
@@ -256,13 +382,13 @@ export default function AjukanReimbursement() {
                       <label className="text-stone-500 font-bold">Pos anggaran</label>
                       <div className="relative">
                         <select 
-                          value={posAnggaran}
-                          onChange={(e) => setPosAnggaran(e.target.value)}
+                          value={posAnggaranId}
+                          onChange={(e) => setPosAnggaranId(e.target.value)}
                           className="w-full bg-white border border-stone-200 rounded-xl pl-3 pr-10 py-3 font-medium text-stone-800 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#008F5D] transition-all"
                         >
-                          <option value="Perlengkapan & ATK">Perlengkapan & ATK</option>
-                          <option value="Bahan Bangunan & Sipil">Bahan Bangunan & Sipil</option>
-                          <option value="Transportasi & Logistik">Transportasi & Logistik</option>
+                          {projects.find(p => p.id === proyekId)?.budget?.posAnggaran?.map((pos: any) => (
+                            <option key={pos.id} value={pos.id}>{pos.deskripsi}</option>
+                          )) || <option value="">Tidak ada pos anggaran</option>}
                         </select>
                         <ChevronDown size={14} className="absolute right-3 top-4 text-stone-400 pointer-events-none" />
                       </div>
@@ -346,10 +472,11 @@ export default function AjukanReimbursement() {
                       <ArrowLeft size={14} /> Upload ulang
                     </button>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={handleFormSubmit} className="px-4 py-2.5 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-xs font-bold rounded-xl transition">
-                        Simpan sebagai draft
+                      <button type="button" onClick={handleResetForm} className="px-4 py-2.5 bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-xs font-bold rounded-xl transition">
+                        Batal
                       </button>
-                      <button type="submit" className="px-4 py-2.5 bg-[#008F5D] hover:bg-[#007A4F] text-white text-xs font-bold rounded-xl transition shadow-sm">
+                      <button type="submit" disabled={isLoading} className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#008F5D] hover:bg-[#007A4F] text-white text-xs font-bold rounded-xl transition shadow-sm disabled:opacity-70">
+                        {isLoading ? <Loader2 size={12} className="animate-spin" /> : null}
                         Kirim ke project manager
                       </button>
                     </div>
@@ -366,7 +493,7 @@ export default function AjukanReimbursement() {
                 </div>
                 <div className="w-full rounded-xl overflow-hidden bg-stone-50 border border-stone-200 aspect-3/4 relative flex items-center justify-center shadow-inner">
                   <img 
-                    src="/bukti_struk.png" 
+                    src={filePreview} 
                     alt="Bukti Struk" 
                     className="w-full h-full object-cover"
                   />
@@ -385,7 +512,7 @@ export default function AjukanReimbursement() {
               <div className="space-y-2 max-w-md mx-auto">
                 <h2 className="text-xl font-extrabold text-stone-900">Pengajuan terkirim!</h2>
                 <p className="text-xs text-stone-500 leading-relaxed font-medium">
-                  Pengajuan <span className="font-mono font-bold text-stone-700">RB-2026-0143</span> senilai <span className="font-bold text-stone-900">Rp {nominal}</span> telah diteruskan ke <span className="font-bold text-stone-800">Muhammad Alvin Ababil</span> (Project Manager) untuk validasi. Kamu akan mendapat notifikasi saat statusnya berubah.
+                  Pengajuan reimbursement senilai <span className="font-bold text-stone-900">Rp {nominal}</span> telah diteruskan ke Project Manager untuk validasi. Kamu akan mendapat notifikasi saat statusnya berubah.
                 </p>
               </div>
 

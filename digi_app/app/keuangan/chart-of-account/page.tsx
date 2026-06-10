@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus_Jakarta_Sans } from 'next/font/google';
 import SidebarKeuangan from '@/components/sidebar-keuangan';
 import HeaderKeuangan from '@/components/header-keuangan';
@@ -12,45 +12,58 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: 'swap',
 });
 
-// Data Dummy Utama sesuai skema relasi ChartOfAccounts Anda
-const initialAccountsDummy = [
-  { nomor_akun: '1-1101', nama_akun: 'Kas', tipe: 'Aset', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 12 },
-  { nomor_akun: '1-1102', nama_akun: 'Bank BCA - Operasional', tipe: 'Aset', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 5 },
-  { nomor_akun: '1-1103', nama_akun: 'Bank Mandiri - Payroll', tipe: 'Aset', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 8 },
-  { nomor_akun: '1-1201', nama_akun: 'Piutang Usaha', tipe: 'Aset', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 2 },
-  { nomor_akun: '1-1301', nama_akun: 'Persediaan Material', tipe: 'Aset', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 0 },
-  { nomor_akun: '2-2101', nama_akun: 'Persediaan Material', tipe: 'Liabilitas', standar: 'PSAK', saldo_normal: 'Kredit', transactionCount: 14 },
-  { nomor_akun: '2-2102', nama_akun: 'Persediaan Material', tipe: 'Liabilitas', standar: 'PSAK', saldo_normal: 'Kredit', transactionCount: 4 },
-  { nomor_akun: '3-3101', nama_akun: 'Modal Disetor', tipe: 'Ekuitas', standar: 'PSAK', saldo_normal: 'Kredit', transactionCount: 1 },
-  { nomor_akun: '3-3101', nama_akun: 'Pendapatan Proyek', tipe: 'Pendapatan', standar: 'PSAK', saldo_normal: 'Kredit', transactionCount: 20 },
-  { nomor_akun: '5-5101', nama_akun: 'Beban Material Proyek', tipe: 'Beban', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 35 },
-  { nomor_akun: '5-5102', nama_akun: 'Beban Tenaga Kerja Lapangan', tipe: 'Beban', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 9 },
-  { nomor_akun: '5-5201', nama_akun: 'Beban Transportasi Proyek', tipe: 'Beban', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 0 },
-  { nomor_akun: '5-5202', nama_akun: 'Beban Konsumsi & Akomodasi', tipe: 'Beban', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 11 },
-  { nomor_akun: '5-5301', nama_akun: 'Beban Sewa Alat', tipe: 'Beban', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 3 },
-  { nomor_akun: '5-5401', nama_akun: 'Beban Administrasi Proyek', tipe: 'Beban', standar: 'PSAK', saldo_normal: 'Debit', transactionCount: 0 },
-];
-
 export default function ChartOfAccountPage() {
-  // State manajemen filter & pencarian internal
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState<string>('Semua');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const filterTabs = ['Semua', 'Aset', 'Liabilitas', 'Ekuitas', 'Pendapatan', 'Beban'];
 
+  useEffect(() => {
+    fetch('/api/coa')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.coa) {
+          setAccounts(data.coa);
+        }
+      })
+      .catch((err) => console.error("Error fetching CoA:", err))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  const getNormalizedTipe = (tipe: string) => {
+    const t = tipe.toLowerCase();
+    if (t === 'asset' || t === 'aset') return 'Aset';
+    if (t === 'liability' || t === 'liabilitas') return 'Liabilitas';
+    if (t === 'equity' || t === 'ekuitas') return 'Ekuitas';
+    if (t === 'revenue' || t === 'pendapatan') return 'Pendapatan';
+    if (t === 'expense' || t === 'beban') return 'Beban';
+    return tipe;
+  };
+
+  const getSaldoNormal = (tipe: string) => {
+    const norm = getNormalizedTipe(tipe);
+    if (norm === 'Aset' || norm === 'Beban') return 'Debit';
+    return 'Kredit';
+  };
+
   // Memastikan filter berjalan sinkron antara tab aktif dan kata kunci pencarian
   const filteredAccounts = useMemo(() => {
-    return initialAccountsDummy.filter((account) => {
-      const matchesTab = selectedTab === 'Semua' || account.tipe === selectedTab;
+    return accounts.filter((account) => {
+      const normTipe = getNormalizedTipe(account.tipe);
+      const matchesTab = selectedTab === 'Semua' || normTipe === selectedTab;
       const matchesSearch = 
-        account.nomor_akun.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        account.nama_akun.toLowerCase().includes(searchQuery.toLowerCase());
+        account.nomorAkun.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        account.namaAkun.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesTab && matchesSearch;
     });
-  }, [selectedTab, searchQuery]);
+  }, [accounts, selectedTab, searchQuery]);
 
   const getBadgeStyles = (tipe: string) => {
-    switch (tipe) {
+    const norm = getNormalizedTipe(tipe);
+    switch (norm) {
       case 'Aset': return { bg: 'bg-[#EEF6F2]', text: 'text-[#005836]' };
       case 'Liabilitas': return { bg: 'bg-[#FDF3F2]', text: 'text-[#902F33]' };
       case 'Ekuitas': return { bg: 'bg-[#E9E8F4]', text: 'text-[#483E90]' };
@@ -64,13 +77,16 @@ export default function ChartOfAccountPage() {
     <div className={`flex h-screen w-full bg-[#F6F4EF] overflow-hidden ${plusJakartaSans.className}`}>
       
       {/* Sidebar Keuangan Kelompok */}
-      <SidebarKeuangan />
+      <SidebarKeuangan 
+        isSidebarOpen={isSidebarOpen} 
+        onClose={() => setIsSidebarOpen(false)} 
+      />
 
       {/* Main Content Area */}
       <div className="flex flex-col flex-1 h-full overflow-hidden">
         
         {/* Header Keuangan Kelompok */}
-        <HeaderKeuangan />
+        <HeaderKeuangan onOpenSidebar={() => setIsSidebarOpen(true)} />
         
         <div className="w-full h-0 border-b border-[#E6E1D4]"></div>
 
@@ -122,7 +138,6 @@ export default function ChartOfAccountPage() {
                 <span>Import</span>
               </button>
 
-              {/* Tombol Tambah Akun - Diperbaiki dari teks bungkus (akun kebawah) & transisi warna */}
               <button 
                 type="button"
                 className="h-10 px-4 bg-[#009162] hover:bg-[#00734D] active:bg-[#005836] text-white text-sm font-medium rounded-xl flex items-center gap-2 transition-all shadow-sm whitespace-nowrap cursor-pointer"
@@ -136,7 +151,7 @@ export default function ChartOfAccountPage() {
           {/* Table Container */}
           <div className="bg-white rounded-2xl border border-[#E4E0D9] shadow-sm overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse min-w-[800px]">
                 <thead>
                   <tr className="bg-[#F1EEE6] border-b border-[#E6E1D4] text-xs font-semibold text-[#9A948B] uppercase tracking-wider">
                     <th className="px-6 py-4 w-1/6">Nomor Akun</th>
@@ -148,27 +163,35 @@ export default function ChartOfAccountPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E6E1D4] text-sm text-[#14130F]">
-                  {filteredAccounts.length > 0 ? (
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center text-[#9A948B]">
+                        Memuat data Chart of Accounts...
+                      </td>
+                    </tr>
+                  ) : filteredAccounts.length > 0 ? (
                     filteredAccounts.map((account, index) => {
                       const badge = getBadgeStyles(account.tipe);
+                      const normTipe = getNormalizedTipe(account.tipe);
+                      const saldoNormal = getSaldoNormal(account.tipe);
                       return (
-                        <tr key={`${account.nomor_akun}-${index}`} className="hover:bg-[#FDFDFD] transition-colors duration-150">
+                        <tr key={`${account.nomorAkun}-${index}`} className="hover:bg-[#FDFDFD] transition-colors duration-150">
                           <td className="px-6 py-4 font-mono font-medium text-gray-900 tracking-wide">
-                            {account.nomor_akun}
+                            {account.nomorAkun}
                           </td>
                           <td className="px-6 py-4 font-medium">
-                            {account.nama_akun}
+                            {account.namaAkun}
                           </td>
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full ${badge.bg} ${badge.text}`}>
-                              {account.tipe}
+                              {normTipe}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-gray-600">
                             {account.standar}
                           </td>
                           <td className="px-6 py-4 text-right font-mono text-gray-700">
-                            {account.saldo_normal}
+                            {saldoNormal}
                           </td>
                           <td className="px-6 py-4 text-center">
                             <button 
