@@ -60,7 +60,7 @@ export default function LoginPage() {
         } else if (role === 'Project Manager') {
           router.push('/pm/budget');
         } else if (role === 'Tim Keuangan') {
-          router.push('/keuangan/chart-of-account');
+          router.push('/keuangan');
         } else {
           router.push('/');
         }
