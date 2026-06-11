@@ -326,14 +326,14 @@ function JurnalAkuntansiContent() {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-[#f4f2ec] text-stone-800 overflow-hidden">
+    <div className="flex h-screen w-full bg-[#f4f2ec] text-stone-800 overflow-hidden">
       <Sidebar 
         isSidebarOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)}
         userRole="Tim Keuangan"
       />
 
-      <div className="flex-1 flex flex-col min-w-0 bg-[#f6f4f0]">
+      <div className="flex-1 flex flex-col min-w-0 bg-[#f6f4f0] overflow-hidden">
         <Header onOpenSidebar={() => setIsSidebarOpen(true)} />
 
         <main className="flex-1 overflow-y-auto px-8 py-6">
@@ -553,7 +553,7 @@ function JurnalAkuntansiContent() {
 
             {/* Tabel Jurnal Umum */}
             {activeTab === "Jurnal Umum" && (
-              <div className="overflow-x-auto rounded-b-xl">
+              <div className="overflow-x-auto rounded-b-xl max-h-105">
                 <table className="w-full min-w-200">
                   <thead>
                     <tr className="border-b border-stone-200 bg-[#fafaf9]">
@@ -670,7 +670,7 @@ function JurnalAkuntansiContent() {
 
             {/* Buku Besar */}
             {activeTab === "Buku Besar" && (
-              <div className="bg-[#f6f4f0] p-5 space-y-4 rounded-b-xl">
+              <div className="bg-[#f6f4f0] p-5 space-y-4 rounded-b-xl overflow-y-auto max-h-105">
                 {isLoading ? (
                   <div className="text-center py-12 text-stone-400 font-medium text-xs bg-white rounded-xl border border-stone-200">
                     Memuat data Buku Besar...
@@ -681,7 +681,7 @@ function JurnalAkuntansiContent() {
                   </div>
                 ) : (
                   bukuBesarData.map((account) => (
-                    <div key={account.kode} className="bg-white border border-stone-200/80 rounded-xl overflow-hidden shadow-sm">
+                    <div key={account.kode} className="bg-white border border-stone-200/80 rounded-xl shadow-sm">
                       <div className="flex justify-between items-center px-5 py-4 border-b border-stone-100 bg-[#fafaf9]">
                         <div className="flex items-center gap-2.5">
                           <span className="text-[12px] font-mono text-stone-400">{account.kode}</span>
