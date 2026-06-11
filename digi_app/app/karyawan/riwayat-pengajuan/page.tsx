@@ -10,12 +10,14 @@ type Submission = {
   id: string;
   dbId: number;
   date: string;
-  rawDate: string;
+  lastActivityTime: number;
   merchant: string;
   project: string;
   pos: string;
   amount: string;
   status: "Menunggu PM" | "Verifikasi Keuangan" | "Dicairkan" | "Ditolak";
+  isResubmit: boolean;
+  isResubmitted: boolean;
 };
 
 const TABS = ["Semua", "Menunggu PM", "Menunggu Keuangan", "Dicairkan", "Ditolak"];
@@ -85,7 +87,7 @@ function getApprovalSteps(raw: any, allRaw: any[] = []): ApprovalStep[] {
     return `${d.getDate()} ${["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Ags","Sep","Okt","Nov","Des"][d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
   };
 
-  const submittedDate = raw.createdAt || raw.ocrData?.tanggal;
+  const submittedDate = raw.ocrData?.submittedAt || (raw.ocrData?.tanggal ? `${raw.ocrData.tanggal}T00:00:00` : undefined);
   const submitterName = raw.user?.nama || "Karyawan";
   const submittedLabel = submittedDate
     ? `${submitterName} • ${formatApprovalDate(submittedDate)}`
@@ -120,12 +122,25 @@ function getApprovalSteps(raw: any, allRaw: any[] = []): ApprovalStep[] {
     ];
   } else if (status === "REJECTED") {
     const pmDate = pmApproval ? formatApprovalDate(pmApproval.timestamp) : "";
-    steps = [
-      { label: "Pengajuan dikirim", sublabel: submittedLabel, status: "done" },
-      { label: "Validasi Project Manager", sublabel: `${pmApprover}${pmDate ? " • " + pmDate : ""}`, status: "rejected" },
-      { label: "Verifikasi Tim Keuangan", sublabel: "Menunggu • —", status: "waiting" },
-      { label: "Dicairkan", sublabel: "Jurnal otomatis • —", status: "waiting" },
-    ];
+    const finDate = financeApproval ? formatApprovalDate(financeApproval.timestamp) : "";
+
+    if (pmApproval?.status === "APPROVED_BY_PM" && financeApproval) {
+      // PM already approved; Tim Keuangan rejected at the disbursement stage
+      steps = [
+        { label: "Pengajuan dikirim", sublabel: submittedLabel, status: "done" },
+        { label: "Validasi Project Manager", sublabel: `${pmApprover}${pmDate ? " • " + pmDate : ""}`, status: "done" },
+        { label: "Verifikasi Tim Keuangan", sublabel: `${financeApprover}${finDate ? " • " + finDate : ""}`, status: "rejected" },
+        { label: "Dicairkan", sublabel: "Jurnal otomatis • —", status: "waiting" },
+      ];
+    } else {
+      // PM rejected directly
+      steps = [
+        { label: "Pengajuan dikirim", sublabel: submittedLabel, status: "done" },
+        { label: "Validasi Project Manager", sublabel: `${pmApprover}${pmDate ? " • " + pmDate : ""}`, status: "rejected" },
+        { label: "Verifikasi Tim Keuangan", sublabel: "Menunggu • —", status: "waiting" },
+        { label: "Dicairkan", sublabel: "Jurnal otomatis • —", status: "waiting" },
+      ];
+    }
   } else {
     steps = [
       { label: "Pengajuan dikirim", sublabel: submittedLabel, status: "done" },
@@ -141,7 +156,7 @@ function getApprovalSteps(raw: any, allRaw: any[] = []): ApprovalStep[] {
   const resubmitFromId = raw.ocrData?.resubmitFrom;
   const original = resubmitFromId ? allRaw.find((r: any) => r.id === resubmitFromId) : null;
   if (original) {
-    const originalSubmittedDate = original.createdAt || original.ocrData?.tanggal;
+    const originalSubmittedDate = original.ocrData?.submittedAt || (original.ocrData?.tanggal ? `${original.ocrData.tanggal}T00:00:00` : undefined);
     const originalSubmitterName = original.user?.nama || "Karyawan";
     const originalSubmittedLabel = originalSubmittedDate
       ? `${originalSubmitterName} • ${formatApprovalDate(originalSubmittedDate)}`
@@ -213,7 +228,8 @@ function DetailPanel({ raw, displayId, allRaw, onClose, onRequestCancel, onResub
   const uiStatus =
     status === "SUBMITTED" ? "Menunggu PM" :
     status === "APPROVED_BY_PM" ? "Verifikasi Keuangan" :
-    status === "APPROVED" ? "Dicairkan" : "Ditolak";
+    status === "APPROVED" ? "Dicairkan" :
+    raw.ocrData?.resubmitFrom ? "Pengajuan Ulang Ditolak" : "Ditolak";
 
   const steps = getApprovalSteps(raw, allRaw);
   const rejectionNote = raw.approvals?.find((a: any) => a.status === "REJECTED")?.catatan || "";
@@ -261,9 +277,23 @@ function DetailPanel({ raw, displayId, allRaw, onClose, onRequestCancel, onResub
           <div className="flex justify-between items-start">
             <div>
               <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-1.5">STATUS</p>
-              <span className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold ${statusTextClass}`}>
-                {uiStatus}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`inline-block px-3 py-1 rounded-full text-[11px] font-bold ${statusTextClass}`}>
+                  {uiStatus}
+                </span>
+                {raw.ocrData?.resubmitFrom && status !== "REJECTED" && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold bg-[#ede9fe] text-[#6d28d9]">
+                    <RefreshCw size={10} />
+                    Pengajuan Ulang
+                  </span>
+                )}
+                {status === "REJECTED" && resubmittedAs && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-semibold bg-[#ede9fe] text-[#6d28d9]">
+                    <RefreshCw size={10} />
+                    Sudah Diajukan Ulang
+                  </span>
+                )}
+              </div>
             </div>
             <div className="text-right">
               <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wide mb-1.5">NOMINAL</p>
@@ -501,14 +531,22 @@ export default function RiwayatPengajuanPage() {
           id: makeDisplayId(String(r.id), i),
           dbId: r.id,
           date: r.ocrData?.tanggal ? formatTanggal(r.ocrData.tanggal) : formatTanggal(r.createdAt?.split('T')[0] || ''),
-          rawDate: r.ocrData?.tanggal || r.createdAt || '',
+          lastActivityTime: [
+            r.ocrData?.submittedAt || (r.ocrData?.tanggal ? `${r.ocrData.tanggal}T00:00:00` : null),
+            ...(r.approvals || []).map((a: any) => a.timestamp),
+          ]
+            .map((t: string | null | undefined) => (t ? new Date(t).getTime() : NaN))
+            .filter((t: number) => !isNaN(t))
+            .reduce((max: number, t: number) => Math.max(max, t), 0),
           merchant: r.ocrData?.merchant || 'N/A',
           project: r.proyek?.nama || 'N/A',
           pos: r.posAnggaran?.deskripsi || r.posAnggaran?.namaPos || 'N/A',
           amount: `Rp ${Number(r.nominal).toLocaleString('id-ID')}`,
           status: (r.status === 'SUBMITTED' ? 'Menunggu PM' :
                   r.status === 'APPROVED_BY_PM' ? 'Verifikasi Keuangan' :
-                  r.status === 'APPROVED' ? 'Dicairkan' : 'Ditolak') as Submission["status"]
+                  r.status === 'APPROVED' ? 'Dicairkan' : 'Ditolak') as Submission["status"],
+          isResubmit: !!r.ocrData?.resubmitFrom,
+          isResubmitted: data.reimbursements.some((other: any) => other.ocrData?.resubmitFrom === r.id),
         }));
         setSubmissions(mapped);
       }
@@ -546,11 +584,7 @@ export default function RiwayatPengajuanPage() {
       return true;
     })
     .sort((a, b) => {
-      const dateA = new Date(a.rawDate).getTime();
-      const dateB = new Date(b.rawDate).getTime();
-      if (isNaN(dateA)) return 1;
-      if (isNaN(dateB)) return -1;
-      return sortOrder === "asc" ? dateA - dateB : dateB - dateA;
+      return sortOrder === "asc" ? a.lastActivityTime - b.lastActivityTime : b.lastActivityTime - a.lastActivityTime;
     });
 
   const handleOpenDetail = (dbId: number, displayId: string) => {
@@ -745,7 +779,7 @@ export default function RiwayatPengajuanPage() {
               <thead>
                 <tr className="bg-[#f5f4ef] border-b border-stone-200 text-[11px] text-stone-400 uppercase tracking-wider font-semibold">
                   <th className="px-6 py-4 rounded-tl-2xl">ID Pengajuan</th>
-                  <th className="px-6 py-4">Tanggal</th>
+                  <th className="px-6 py-4">Tanggal Transaksi</th>
                   <th className="px-6 py-4">Merchant</th>
                   <th className="px-6 py-4">Proyek</th>
                   <th className="px-6 py-4">Pos</th>
@@ -781,9 +815,23 @@ export default function RiwayatPengajuanPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap font-medium text-stone-800">{item.amount}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${getStatusBadge(item.status)}`}>
-                          {item.status}
-                        </span>
+                        <div className="flex flex-col items-start gap-1">
+                          <span className={`px-3 py-1 rounded-full text-[11px] font-bold ${getStatusBadge(item.status)}`}>
+                            {item.status === "Ditolak" && item.isResubmit ? "Pengajuan Ulang Ditolak" : item.status}
+                          </span>
+                          {item.isResubmit && item.status !== "Ditolak" && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#ede9fe] text-[#6d28d9]">
+                              <RefreshCw size={10} />
+                              Pengajuan Ulang
+                            </span>
+                          )}
+                          {item.status === "Ditolak" && item.isResubmitted && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#ede9fe] text-[#6d28d9]">
+                              <RefreshCw size={10} />
+                              Sudah Diajukan Ulang
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <button
