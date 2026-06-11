@@ -45,9 +45,9 @@ export default function AjukanReimbursement() {
           setProjects(data.projects);
           if (data.projects.length > 0) {
             const firstProject = data.projects[0];
-            setProyekId(firstProject.id);
+            setProyekId(String(firstProject.id));
             if (firstProject.budget?.posAnggaran?.length > 0) {
-              setPosAnggaranId(firstProject.budget.posAnggaran[0].id);
+              setPosAnggaranId(String(firstProject.budget.posAnggaran[0].id));
             }
           }
         }
@@ -57,9 +57,9 @@ export default function AjukanReimbursement() {
 
   const handleProjectChange = (id: string) => {
     setProyekId(id);
-    const proj = projects.find(p => p.id === id);
+    const proj = projects.find(p => String(p.id) === id);
     if (proj?.budget?.posAnggaran?.length > 0) {
-      setPosAnggaranId(proj.budget.possAnggaran[0].id);
+      setPosAnggaranId(String(proj.budget.posAnggaran[0].id));
     } else {
       setPosAnggaranId('');
     }
@@ -110,6 +110,12 @@ export default function AjukanReimbursement() {
 
   const handleSubmitReimbursement = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!proyekId || !posAnggaranId) {
+      alert('Pilih proyek dan pos anggaran terlebih dahulu');
+      return;
+    }
+
     setIsLoading(true);
 
     const formData = new FormData();
@@ -371,7 +377,7 @@ export default function AjukanReimbursement() {
                           className="w-full bg-white border border-stone-200 rounded-xl pl-3 pr-10 py-3 font-medium text-stone-800 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#008F5D] transition-all"
                         >
                           {projects.map(p => (
-                            <option key={p.id} value={p.id}>{p.nama}</option>
+                            <option key={p.id} value={String(p.id)}>{p.nama}</option>
                           ))}
                         </select>
                         <ChevronDown size={14} className="absolute right-3 top-4 text-stone-400 pointer-events-none" />
@@ -385,8 +391,8 @@ export default function AjukanReimbursement() {
                           onChange={(e) => setPosAnggaranId(e.target.value)}
                           className="w-full bg-white border border-stone-200 rounded-xl pl-3 pr-10 py-3 font-medium text-stone-800 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-[#008F5D] transition-all"
                         >
-                          {projects.find(p => p.id === proyekId)?.budget?.posAnggaran?.map((pos: any) => (
-                            <option key={pos.id} value={pos.id}>{pos.deskripsi}</option>
+                          {projects.find(p => String(p.id) === proyekId)?.budget?.posAnggaran?.map((pos: any) => (
+                            <option key={pos.id} value={String(pos.id)}>{pos.namaPos}</option>
                           )) || <option value="">Tidak ada pos anggaran</option>}
                         </select>
                         <ChevronDown size={14} className="absolute right-3 top-4 text-stone-400 pointer-events-none" />
