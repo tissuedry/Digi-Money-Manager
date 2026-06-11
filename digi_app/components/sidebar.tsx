@@ -3,10 +3,10 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X, LayoutDashboard, Plus, History, FileCheck, Wallet, BookOpen, BarChart3, Settings } from "lucide-react";
+import { X, LayoutDashboard, Plus, History, FileCheck, Wallet, BookOpen, BarChart3, Settings, MessageSquare, TrendingUp, Users, FileText } from "lucide-react";
 
 // Role type definition
-export type UserRole = "Karyawan" | "Project Manager" | "Tim Keuangan";
+export type UserRole = "Karyawan" | "Project Manager" | "Tim Keuangan" | "Direktur / Manajemen";
 
 // Menu item configuration
 interface MenuItem {
@@ -23,7 +23,6 @@ interface SidebarProps {
   userRole: UserRole;
 }
 
-// Menu configuration per role
 const ROLE_MENUS: Record<UserRole, MenuItem[]> = {
   Karyawan: [
     { name: "Beranda", href: "/karyawan", icon: LayoutDashboard, hasBadge: false },
@@ -38,8 +37,16 @@ const ROLE_MENUS: Record<UserRole, MenuItem[]> = {
   "Tim Keuangan": [
     { name: "Beranda", href: "/keuangan", icon: LayoutDashboard, hasBadge: false },
     { name: "Pencairan", href: "/keuangan/pencairan", icon: Wallet, hasBadge: false },
+    { name: "Budget Proyek", href: "/keuangan/budget", icon: BarChart3, hasBadge: false },
     { name: "Jurnal Akuntansi", href: "/keuangan/jurnal", icon: BookOpen, hasBadge: false },
     { name: "Chart of Accounts", href: "/keuangan/chart-of-account", icon: Settings, hasBadge: false },
+  ],
+  "Direktur / Manajemen": [
+    { name: "Executive Dashboard", href: "/manager", icon: LayoutDashboard, hasBadge: false },
+    { name: "Smart Chat", href: "/manager/smart-chat", icon: MessageSquare, hasBadge: false },
+    { name: "Profitabilitas", href: "/manager/profitabilitas", icon: TrendingUp, hasBadge: false },
+    { name: "Laporan", href: "/manager/laporan", icon: FileText, hasBadge: false },
+    { name: "Registrasi Anggota", href: "/manager/anggota", icon: Users, hasBadge: false },
   ],
 };
 
@@ -56,6 +63,11 @@ const ROLE_STYLES: Record<UserRole, { bg: string; logoBg: string; logoText: stri
     logoText: "text-stone-800",
   },
   "Tim Keuangan": {
+    bg: "bg-[#f5f4ef]",
+    logoBg: "bg-white",
+    logoText: "text-stone-800",
+  },
+  "Direktur / Manajemen": {
     bg: "bg-[#f5f4ef]",
     logoBg: "bg-white",
     logoText: "text-stone-800",

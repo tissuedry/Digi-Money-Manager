@@ -85,9 +85,10 @@ function getApprovalSteps(raw: any): ApprovalStep[] {
   };
 
   const submittedDate = raw.createdAt || raw.ocrData?.tanggal;
+  const submitterName = raw.user?.nama || "Karyawan";
   const submittedLabel = submittedDate
-    ? `Alif Ihsan • ${formatApprovalDate(submittedDate)}`
-    : "Alif Ihsan";
+    ? `${submitterName} • ${formatApprovalDate(submittedDate)}`
+    : submitterName;
 
   if (status === "SUBMITTED") {
     return [
@@ -411,169 +412,38 @@ export default function RiwayatPengajuanPage() {
   const [showFilterPanel, setShowFilterPanel] = useState(false);
 
 
-// Jika menggunakan database nyata ini merupakan kode yang menghubungkan dengan database  
-// //useEffect(() => {
-//     fetch('/api/reimbursements')
-//       .then(res => res.json())
-//       .then(data => {
-//         if (data.reimbursements) {
-//           setRawReimbursements(data.reimbursements);
-//           const mapped = data.reimbursements.map((r: any) => ({
-//             id: String(r.id).substring(0, 8).toUpperCase(),
-//             dbId: r.id,
-//             date: r.ocrData?.tanggal ? formatTanggal(r.ocrData.tanggal) : 'N/A',
-//             merchant: r.ocrData?.merchant || 'N/A',
-//             project: r.proyek?.nama || 'N/A',
-//             pos: r.posAnggaran?.deskripsi || 'N/A',
-//             amount: `Rp ${Number(r.nominal).toLocaleString('id-ID')}`,
-//             status: r.status === 'SUBMITTED' ? 'Menunggu PM' :
-//                     r.status === 'APPROVED_BY_PM' ? 'Verifikasi Keuangan' :
-//                     r.status === 'APPROVED' ? 'Dicairkan' : 'Ditolak'
-//           }));
-//           setSubmissions(mapped);
-//         }
-//       })
-//       .catch(err => console.error('Error fetching submissions:', err))
-//       .finally(() => setIsLoading(false));
-
-
   useEffect(() => {
-    // --- DATA DUMMY (keempat skenario status) ---
-    const DUMMY_REIMBURSEMENTS = [
-      // 1. SUBMITTED → Menunggu PM
-      {
-        id: "dummy-001",
-        nominal: 150000,
-        status: "SUBMITTED",
-        createdAt: "2026-03-12T08:30:00.000Z",
-        strukUrl: "/bukti_struk.png",
-        antiFraud: "Aman",
-        ocrData: {
-          merchant: "Gramedia Merdeka",
-          tanggal: "2026-03-12",
-          keterangan: "Renovasi kantor cabang Bandung, pembelian cat dan perlengkapan renovasi lainnya",
-        },
-        proyek: { nama: "Renovasi Kantor Cabang Bandung" },
-        posAnggaran: { deskripsi: "Renovasi" },
-        approvals: [
-          {
-            level: "PM",
-            status: "PENDING",
-            approver: { nama: "Muhammad Alvin Ababil" },
-            timestamp: null,
-            catatan: null,
-          },
-        ],
-      },
-      // 2. APPROVED_BY_PM → Verifikasi Keuangan
-      {
-        id: "dummy-002",
-        nominal: 450000,
-        status: "APPROVED_BY_PM",
-        createdAt: "2026-04-05T09:15:00.000Z",
-        strukUrl: "/bukti_struk.png",
-        antiFraud: "Aman",
-        ocrData: {
-          merchant: "SPBU Pertamina 34.121",
-          tanggal: "2026-04-05",
-          keterangan: "Biaya bahan pembangunan gudang fase 2",
-        },
-        proyek: { nama: "Pembangunan Gudang Fase 2" },
-        posAnggaran: { deskripsi: "Pembangunan" },
-        approvals: [
-          {
-            level: "PM",
-            status: "APPROVED",
-            approver: { nama: "Muhammad Alvin Ababil" },
-            timestamp: "2026-04-06T10:00:00.000Z",
-            catatan: null,
-          },
-          {
-            level: "FINANCE",
-            status: "PENDING",
-            approver: { nama: "Muhammad Zaini" },
-            timestamp: null,
-            catatan: null,
-          },
-        ],
-      },
-      // 3. APPROVED → Dicairkan
-      {
-        id: "dummy-003",
-        nominal: 150000,
-        status: "APPROVED",
-        createdAt: "2026-05-19T07:45:00.000Z",
-        disbursedAt: "2026-05-20T14:30:00.000Z",
-        strukUrl: "/bukti_struk.png",
-        antiFraud: "Aman",
-        ocrData: {
-          merchant: "Solaria Resto Bandung",
-          tanggal: "2026-05-19",
-          keterangan: "Makan siang dengan klien PT SPBU Pertamina dalam rangka presentasi proposal",
-        },
-        proyek: { nama: "Pembangunan Gudang Fase 2" },
-        posAnggaran: { deskripsi: "Konsumsi" },
-        approvals: [
-          {
-            level: "PM",
-            status: "APPROVED",
-            approver: { nama: "Muhammad Alvin Ababil" },
-            timestamp: "2026-05-19T09:00:00.000Z",
-            catatan: null,
-          },
-          {
-            level: "FINANCE",
-            status: "APPROVED",
-            approver: { nama: "Muhammad Zaini" },
-            timestamp: "2026-05-20T11:20:00.000Z",
-            catatan: null,
-          },
-        ],
-      },
-      // 4. REJECTED → Ditolak
-      {
-        id: "dummy-004",
-        nominal: 150000,
-        status: "REJECTED",
-        createdAt: "2026-05-18T13:00:00.000Z",
-        strukUrl: "/bukti_struk.png",
-        antiFraud: "Aman",
-        ocrData: {
-          merchant: "Indomaret Bandung",
-          tanggal: "2026-05-18",
-          keterangan: "Pembangunan Data Center Bandung Tier-3",
-        },
-        proyek: { nama: "Data Center Bandung Tier-3" },
-        posAnggaran: { deskripsi: "Pembangunan" },
-        approvals: [
-          {
-            level: "PM",
-            status: "REJECTED",
-            approver: { nama: "Muhammad Alvin Ababil" },
-            timestamp: "2026-05-19T10:30:00.000Z",
-            catatan: "Biaya pembangunan bulan ini sudah melebihi alokasi. Silakan ajukan ulang bulan depan",
-          }
-        ],
-      },
-    ];
-    // --- AKHIR DATA DUMMY ---
-
-    const mapped: Submission[] = DUMMY_REIMBURSEMENTS.map((r: any, i: number) => ({
-      id: makeDisplayId(r.id, i),
-      dbId: r.id,
-      date: r.ocrData?.tanggal ? formatTanggal(r.ocrData.tanggal) : 'N/A',
-      rawDate: r.ocrData?.tanggal || r.createdAt || '',
-      merchant: r.ocrData?.merchant || 'N/A',
-      project: r.proyek?.nama || 'N/A',
-      pos: r.posAnggaran?.deskripsi || 'N/A',
-      amount: `Rp ${Number(r.nominal).toLocaleString('id-ID')}`,
-      status: (r.status === 'SUBMITTED' ? 'Menunggu PM' :
+    setIsLoading(true);
+    fetch('/api/reimbursements')
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then(data => {
+        if (data.reimbursements) {
+          setRawReimbursements(data.reimbursements);
+          const mapped: Submission[] = data.reimbursements.map((r: any, i: number) => ({
+            id: `RB-${String(r.id).padStart(4, '0')}`,
+            dbId: String(r.id),
+            date: r.ocrData?.tanggal ? formatTanggal(r.ocrData.tanggal) : formatTanggal(r.createdAt?.split('T')[0] || ''),
+            rawDate: r.ocrData?.tanggal || r.createdAt || '',
+            merchant: r.ocrData?.merchant || 'N/A',
+            project: r.proyek?.nama || 'N/A',
+            pos: r.posAnggaran?.deskripsi || r.posAnggaran?.namaPos || 'N/A',
+            amount: `Rp ${Number(r.nominal).toLocaleString('id-ID')}`,
+            status: (
+              r.status === 'SUBMITTED' ? 'Menunggu PM' :
               r.status === 'APPROVED_BY_PM' ? 'Verifikasi Keuangan' :
-              r.status === 'APPROVED' ? 'Dicairkan' : 'Ditolak') as Submission["status"]
-    }));
-    setRawReimbursements(DUMMY_REIMBURSEMENTS);
-    setSubmissions(mapped);
-    setIsLoading(false);
+              r.status === 'APPROVED' ? 'Dicairkan' : 'Ditolak'
+            ) as Submission['status'],
+          }));
+          setSubmissions(mapped);
+        }
+      })
+      .catch(err => {
+        console.error('Error fetching submissions:', err);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   // Extract unique projects and pos categories dynamically

@@ -137,6 +137,9 @@ export async function middleware(req: NextRequest) {
     if (role === 'Tim Keuangan') {
       return NextResponse.redirect(new URL('/keuangan', req.url));
     }
+    if (role === 'Direktur / Manajemen') {
+      return NextResponse.redirect(new URL('/manager', req.url));
+    }
   }
 
   // Route protections
@@ -152,7 +155,18 @@ export async function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL('/', req.url));
   }
 
+  if (pathname.startsWith('/manager') && role !== 'Direktur / Manajemen') {
+    return NextResponse.redirect(new URL('/', req.url));
+  }
+
   // API protections based on roles
+  if (pathname.startsWith('/api/manager') && role !== 'Direktur / Manajemen') {
+    return new NextResponse(
+      JSON.stringify({ message: 'Forbidden: Only Direktur / Manajemen can access manager APIs' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+
   if (pathname.startsWith('/api/coa') && role !== 'Tim Keuangan') {
     return new NextResponse(
       JSON.stringify({ message: 'Forbidden: Only Tim Keuangan can manage CoA' }),
@@ -185,5 +199,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/', '/karyawan/:path*', '/pm/:path*', '/keuangan/:path*', '/api/:path*'],
+  matcher: ['/', '/karyawan/:path*', '/pm/:path*', '/keuangan/:path*', '/manager/:path*', '/api/:path*'],
 };

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { Bell, Menu, LogOut, Check, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
 
-export type UserRole = "Karyawan" | "Project Manager" | "Tim Keuangan";
+export type UserRole = "Karyawan" | "Project Manager" | "Tim Keuangan" | "Direktur / Manajemen";
 
 interface HeaderProps {
   onOpenSidebar?: () => void;
@@ -53,11 +53,11 @@ function getRelativeTime(timestamp: string | Date) {
   return `${diffMonths} bln lalu`;
 }
 
-// Role-specific avatar colors
 const ROLE_AVATAR_STYLES: Record<UserRole, { bg: string; text: string }> = {
   Karyawan: { bg: "bg-[#c2e0d1]", text: "text-[#117a5b]" },
   "Project Manager": { bg: "bg-red-50", text: "text-red-700" },
   "Tim Keuangan": { bg: "bg-[#005c3e]", text: "text-white" },
+  "Direktur / Manajemen": { bg: "bg-[#1e3a5f]", text: "text-white" },
 };
 
 export default function Header({ onOpenSidebar, userRole = "Karyawan", hideNotificationDropdown = false }: HeaderProps) {
